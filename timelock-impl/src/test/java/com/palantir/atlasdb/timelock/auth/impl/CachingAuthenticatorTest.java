@@ -17,20 +17,16 @@
 package com.palantir.atlasdb.timelock.auth.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import java.util.Map;
-
-import javax.ws.rs.ForbiddenException;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mindrot.jbcrypt.BCrypt;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import com.google.common.collect.ImmutableMap;
+import com.palantir.atlasdb.timelock.auth.api.AuthenticatedClient;
 import com.palantir.atlasdb.timelock.auth.api.Authenticator;
 import com.palantir.atlasdb.timelock.auth.api.BCryptedSecret;
-import com.palantir.atlasdb.timelock.auth.api.Client;
 import com.palantir.atlasdb.timelock.auth.api.Password;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -45,7 +41,7 @@ public class CachingAuthenticatorTest {
     @Test
     public void returnsAnonymousClientIfUnaware() {
         Authenticator cachingAuthenticator = CachingAuthenticator.create(ImmutableMap.of());
-        assertThat(cachingAuthenticator.authenticate(CLIENT_1, PASSWORD_1)).isEqualTo(Client.ANONYMOUS);
+        assertThat(cachingAuthenticator.authenticate(CLIENT_1, PASSWORD_1)).contains(AuthenticatedClient.ANONYMOUS);
     }
 
     @Test
@@ -55,7 +51,7 @@ public class CachingAuthenticatorTest {
                 CLIENT_2, bcrypted(PASSWORD_2)));
 
         assertThat(cachingAuthenticator.authenticate(CLIENT_1, PASSWORD_1)).
-                isEqualTo(Client.create(CLIENT_1));
+                contains(AuthenticatedClient.create(CLIENT_1));
     }
 
     @Test
@@ -64,11 +60,10 @@ public class CachingAuthenticatorTest {
                 CLIENT_1, bcrypted(PASSWORD_1),
                 CLIENT_2, bcrypted(PASSWORD_2)));
 
-        assertThatThrownBy(() -> cachingAuthenticator.authenticate(CLIENT_1, PASSWORD_2))
-                .isInstanceOf(ForbiddenException.class);
+        assertThat(cachingAuthenticator.authenticate(CLIENT_1, PASSWORD_2)).isEmpty();
     }
 
     private static BCryptedSecret bcrypted(Password password) {
-        return BCryptedSecret.forPassword(password);
+        return BCryptedSecret.of(BCrypt.hashpw(password.value(), BCrypt.gensalt()));
     }
 }
